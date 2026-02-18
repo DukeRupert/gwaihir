@@ -168,6 +168,22 @@ func (c *Client) doPaginated(path string, out any) error {
 	return nil
 }
 
+// Zone represents a Cloudflare DNS zone.
+type Zone struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
+
+// ListZones returns all zones in the account.
+func (c *Client) ListZones() ([]Zone, error) {
+	var zones []Zone
+	if err := c.doPaginated("/zones", &zones); err != nil {
+		return nil, err
+	}
+	return zones, nil
+}
+
 // VerifyToken verifies the API token is valid.
 func (c *Client) VerifyToken() error {
 	var result struct {
