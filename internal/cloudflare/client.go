@@ -1,0 +1,187 @@
+package cloudflare
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+)
+
+const baseURL = "https://api.cloudflare.com/client/v4"
+
+type Client struct {
+	Token      string
+	httpClient *http.Client
+}
+
+func NewClient(token string) *Client {
+	return &Client{
+		Token:      token,
+		httpClient: &http.Client{},
+	}
+}
+
+// cfError represents an error returned by the Cloudflare API.
+type cfError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+// cfResultInfo contains pagination info from the Cloudflare API.
+type cfResultInfo struct {
+	Page       int `json:"page"`
+	PerPage    int `json:"per_page"`
+	TotalPages int `json:"total_pages"`
+	Count      int `json:"count"`
+	TotalCount int `json:"total_count"`
+}
+
+// cfResponse is the base response wrapper for all Cloudflare API calls.
+type cfResponse struct {
+	Success    bool            `json:"success"`
+	Errors     []cfError       `json:"errors"`
+	ResultInfo *cfResultInfo   `json:"result_info,omitempty"`
+	Result     json.RawMessage `json:"result"`
+}
+
+// do performs an HTTP request against the Cloudflare API.
+// method is the HTTP method, path is appended to baseURL,
+// payload is marshaled as JSON for the request body (nil for no body),
+// and out receives the unmarshaled "result" field from the response.
+func (c *Client) do(method, path string, payload any, out any) error {
+	var body io.Reader
+	if payload != nil {
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return fmt.Errorf("marshaling request: %w", err)
+		}
+		body = bytes.NewReader(data)
+	}
+
+	req, err := http.NewRequest(method, baseURL+path, body)
+	if err != nil {
+		return fmt.Errorf("creating request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("http request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("reading response: %w", err)
+	}
+
+	var cfResp cfResponse
+	if err := json.Unmarshal(raw, &cfResp); err != nil {
+		return fmt.Errorf("unmarshaling response: %w", err)
+	}
+
+	if !cfResp.Success {
+		if len(cfResp.Errors) > 0 {
+			return fmt.Errorf("cloudflare error: %s (code %d)", cfResp.Errors[0].Message, cfResp.Errors[0].Code)
+		}
+		return fmt.Errorf("cloudflare request failed")
+	}
+
+	if out != nil && cfResp.Result != nil {
+		if err := json.Unmarshal(cfResp.Result, out); err != nil {
+			return fmt.Errorf("unmarshaling result: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// doPaginated performs paginated GET requests, collecting all results.
+// path should not include query parameters — page and per_page are added automatically.
+func (c *Client) doPaginated(path string, out any) error {
+	var body io.Reader
+
+	var allResults []json.RawMessage
+
+	page := 1
+	for {
+		url := fmt.Sprintf("%s%s?page=%d&per_page=50", baseURL, path, page)
+
+		req, err := http.NewRequest("GET", url, body)
+		if err != nil {
+			return fmt.Errorf("creating request: %w", err)
+		}
+
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("http request: %w", err)
+		}
+
+		raw, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return fmt.Errorf("reading response: %w", err)
+		}
+
+		var cfResp cfResponse
+		if err := json.Unmarshal(raw, &cfResp); err != nil {
+			return fmt.Errorf("unmarshaling response: %w", err)
+		}
+
+		if !cfResp.Success {
+			if len(cfResp.Errors) > 0 {
+				return fmt.Errorf("cloudflare error: %s (code %d)", cfResp.Errors[0].Message, cfResp.Errors[0].Code)
+			}
+			return fmt.Errorf("cloudflare request failed")
+		}
+
+		// Parse the result array and append individual items
+		var items []json.RawMessage
+		if err := json.Unmarshal(cfResp.Result, &items); err != nil {
+			return fmt.Errorf("unmarshaling result array: %w", err)
+		}
+		allResults = append(allResults, items...)
+
+		// Check if there are more pages
+		if cfResp.ResultInfo == nil || page >= cfResp.ResultInfo.TotalPages {
+			break
+		}
+		page++
+	}
+
+	// Marshal all collected results back and unmarshal into the output type
+	collected, err := json.Marshal(allResults)
+	if err != nil {
+		return fmt.Errorf("marshaling collected results: %w", err)
+	}
+
+	if err := json.Unmarshal(collected, out); err != nil {
+		return fmt.Errorf("unmarshaling collected results: %w", err)
+	}
+
+	return nil
+}
+
+// VerifyToken verifies the API token is valid.
+func (c *Client) VerifyToken() error {
+	var result struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+
+	if err := c.do("GET", "/user/tokens/verify", nil, &result); err != nil {
+		return err
+	}
+
+	if result.Status != "active" {
+		return fmt.Errorf("token status: %s", result.Status)
+	}
+
+	return nil
+}
