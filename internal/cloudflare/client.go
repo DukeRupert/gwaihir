@@ -184,6 +184,37 @@ func (c *Client) ListZones() ([]Zone, error) {
 	return zones, nil
 }
 
+// DNSRecord represents a Cloudflare DNS record.
+type DNSRecord struct {
+	ID      string `json:"id,omitempty"`
+	Type    string `json:"type"`
+	Name    string `json:"name"`
+	Content string `json:"content"`
+	TTL     int    `json:"ttl"`
+	Proxied bool   `json:"proxied"`
+}
+
+// GetZoneID resolves a domain name to its Cloudflare zone ID.
+func (c *Client) GetZoneID(domain string) (string, error) {
+	var zones []Zone
+	if err := c.do("GET", "/zones?name="+domain, nil, &zones); err != nil {
+		return "", err
+	}
+	if len(zones) == 0 {
+		return "", fmt.Errorf("no zone found for domain: %s", domain)
+	}
+	return zones[0].ID, nil
+}
+
+// ListRecords returns all DNS records for the given zone ID.
+func (c *Client) ListRecords(zoneID string) ([]DNSRecord, error) {
+	var records []DNSRecord
+	if err := c.doPaginated("/zones/"+zoneID+"/dns_records", &records); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
 // VerifyToken verifies the API token is valid.
 func (c *Client) VerifyToken() error {
 	var result struct {
