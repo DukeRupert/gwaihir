@@ -93,6 +93,47 @@ var dnsCreateCmd = &cobra.Command{
 	},
 }
 
+var dnsEditCmd = &cobra.Command{
+	Use:   "edit",
+	Short: "Edit a DNS record by ID",
+	Example: `  gwaihir dns edit --zone example.com --id abc123 --type A --name test.example.com --content 5.6.7.8
+  gwaihir dns edit --zone example.com --id abc123 --type A --name test.example.com --content 5.6.7.8 --proxied`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		zone, _ := cmd.Flags().GetString("zone")
+		id, _ := cmd.Flags().GetString("id")
+		name, _ := cmd.Flags().GetString("name")
+		recordType, _ := cmd.Flags().GetString("type")
+		content, _ := cmd.Flags().GetString("content")
+		ttl, _ := cmd.Flags().GetInt("ttl")
+		proxied, _ := cmd.Flags().GetBool("proxied")
+
+		if zone == "" || id == "" || name == "" || recordType == "" || content == "" {
+			return fmt.Errorf("--zone, --id, --name, --type, and --content are required")
+		}
+
+		zoneID, err := client.GetZoneID(zone)
+		if err != nil {
+			return err
+		}
+
+		record := cloudflare.DNSRecord{
+			Type:    recordType,
+			Name:    name,
+			Content: content,
+			TTL:     ttl,
+			Proxied: proxied,
+		}
+
+		result, err := client.EditRecord(zoneID, id, record)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("✓ Updated %s record %s → %s (ID: %s)\n", result.Type, result.Name, result.Content, result.ID)
+		return nil
+	},
+}
+
 func init() {
 	// list flags
 	dnsListCmd.Flags().String("zone", "", "Domain name (e.g. example.com)")
@@ -105,7 +146,17 @@ func init() {
 	dnsCreateCmd.Flags().Int("ttl", defaultTTL, "Time to live in seconds (1 = automatic)")
 	dnsCreateCmd.Flags().Bool("proxied", false, "Enable Cloudflare proxy")
 
+	// edit flags
+	dnsEditCmd.Flags().String("zone", "", "Domain name (e.g. example.com)")
+	dnsEditCmd.Flags().String("id", "", "Record ID to edit (get from dns list)")
+	dnsEditCmd.Flags().String("name", "", "Full record name (e.g. test.example.com)")
+	dnsEditCmd.Flags().String("type", "", "Record type (A, AAAA, CNAME, TXT, MX, etc.)")
+	dnsEditCmd.Flags().String("content", "", "Record content (e.g. IP address or target)")
+	dnsEditCmd.Flags().Int("ttl", defaultTTL, "Time to live in seconds (1 = automatic)")
+	dnsEditCmd.Flags().Bool("proxied", false, "Enable Cloudflare proxy")
+
 	dnsCmd.AddCommand(dnsListCmd)
 	dnsCmd.AddCommand(dnsCreateCmd)
+	dnsCmd.AddCommand(dnsEditCmd)
 	rootCmd.AddCommand(dnsCmd)
 }

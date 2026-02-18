@@ -224,6 +224,15 @@ func (c *Client) CreateRecord(zoneID string, record DNSRecord) (DNSRecord, error
 	return result, nil
 }
 
+// EditRecord updates a DNS record by ID in the given zone.
+func (c *Client) EditRecord(zoneID, recordID string, record DNSRecord) (DNSRecord, error) {
+	var result DNSRecord
+	if err := c.do("PUT", "/zones/"+zoneID+"/dns_records/"+recordID, record, &result); err != nil {
+		return DNSRecord{}, err
+	}
+	return result, nil
+}
+
 // VerifyToken verifies the API token is valid.
 func (c *Client) VerifyToken() error {
 	var result struct {
