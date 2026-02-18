@@ -215,6 +215,15 @@ func (c *Client) ListRecords(zoneID string) ([]DNSRecord, error) {
 	return records, nil
 }
 
+// CreateRecord creates a DNS record in the given zone.
+func (c *Client) CreateRecord(zoneID string, record DNSRecord) (DNSRecord, error) {
+	var result DNSRecord
+	if err := c.do("POST", "/zones/"+zoneID+"/dns_records", record, &result); err != nil {
+		return DNSRecord{}, err
+	}
+	return result, nil
+}
+
 // VerifyToken verifies the API token is valid.
 func (c *Client) VerifyToken() error {
 	var result struct {
