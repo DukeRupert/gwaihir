@@ -8,7 +8,7 @@ Named after the Lord of the Eagles — carries messages swiftly across vast dist
 
 ## Repository
 
-`github.com/fireflysoftware/gwaihir`
+`github.com/dukerupert/gwaihir`
 
 ## Status
 
