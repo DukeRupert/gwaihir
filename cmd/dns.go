@@ -134,6 +134,32 @@ var dnsEditCmd = &cobra.Command{
 	},
 }
 
+var dnsDeleteCmd = &cobra.Command{
+	Use:     "delete",
+	Short:   "Delete a DNS record by ID",
+	Example: `  gwaihir dns delete --zone example.com --id abc123`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		zone, _ := cmd.Flags().GetString("zone")
+		id, _ := cmd.Flags().GetString("id")
+
+		if zone == "" || id == "" {
+			return fmt.Errorf("--zone and --id are required")
+		}
+
+		zoneID, err := client.GetZoneID(zone)
+		if err != nil {
+			return err
+		}
+
+		if err := client.DeleteRecord(zoneID, id); err != nil {
+			return err
+		}
+
+		fmt.Printf("✓ Deleted record %s from %s\n", id, zone)
+		return nil
+	},
+}
+
 func init() {
 	// list flags
 	dnsListCmd.Flags().String("zone", "", "Domain name (e.g. example.com)")
@@ -155,8 +181,13 @@ func init() {
 	dnsEditCmd.Flags().Int("ttl", defaultTTL, "Time to live in seconds (1 = automatic)")
 	dnsEditCmd.Flags().Bool("proxied", false, "Enable Cloudflare proxy")
 
+	// delete flags
+	dnsDeleteCmd.Flags().String("zone", "", "Domain name (e.g. example.com)")
+	dnsDeleteCmd.Flags().String("id", "", "Record ID to delete (get from dns list)")
+
 	dnsCmd.AddCommand(dnsListCmd)
 	dnsCmd.AddCommand(dnsCreateCmd)
 	dnsCmd.AddCommand(dnsEditCmd)
+	dnsCmd.AddCommand(dnsDeleteCmd)
 	rootCmd.AddCommand(dnsCmd)
 }

@@ -233,6 +233,11 @@ func (c *Client) EditRecord(zoneID, recordID string, record DNSRecord) (DNSRecor
 	return result, nil
 }
 
+// DeleteRecord deletes a DNS record by ID in the given zone.
+func (c *Client) DeleteRecord(zoneID, recordID string) error {
+	return c.do("DELETE", "/zones/"+zoneID+"/dns_records/"+recordID, nil, nil)
+}
+
 // VerifyToken verifies the API token is valid.
 func (c *Client) VerifyToken() error {
 	var result struct {
