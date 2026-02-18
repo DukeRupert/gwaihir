@@ -5,7 +5,7 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/dukerupert/gwaihir/internal/cloudflare"
+	"github.com/dukerupert/gwaihir/pkg/cloudflare"
 	"github.com/spf13/cobra"
 )
 

@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/dukerupert/gwaihir/internal/cloudflare"
+	"github.com/dukerupert/gwaihir/pkg/cloudflare"
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 )
